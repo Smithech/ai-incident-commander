@@ -1,0 +1,23 @@
+[project]
+name = "ai-incident-commander-agent"
+version = "0.1.0"
+description = "AI Incident Commander agent service"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "asyncpg>=0.30,<1.0",
+    "fastapi>=0.115,<1.0",
+    "pydantic>=2.0,<3.0",
+    "sqlalchemy[asyncio]>=2.0,<3.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1.0",
+    "pytest>=8.0,<9.0",
+    "pytest-asyncio>=0.25,<1.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
