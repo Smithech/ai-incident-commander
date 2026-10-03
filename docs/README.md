@@ -27,3 +27,4 @@ Lista de ADR:
 - ADR-007: Mock Platform
 - ADR-008: Deterministic evaluation
 - ADR-009: Ejecución asíncrona de investigaciones
+- ADR-010: LangGraph workflow state vs domain state
