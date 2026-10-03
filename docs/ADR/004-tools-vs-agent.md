@@ -66,16 +66,18 @@ Desventajas:
 
 Razonamiento agéntico con Tools deterministas
 
-Las herramientas de investigación serán deterministas y el proceso de selección de herramientas podrá utilizar razonamiento agentic. El agente no tendrá acceso directo a sistemas externos; toda interacción deberá realizarse mediante herramientas explícitamente registradas, tipadas y con límites de ejecución.
+Deterministic tools produce observable evidence. Agentic reasoning operates over that evidence to generate hypotheses and conclusions.
 
 ```
 Tools
-   ↓
-deterministic evidence retrieval
-
-Agent
-   ↓
-reasoning / correlation / hypotheses
+  ↓
+Deterministic data [observable evidence]
+  ↓
+Agentic reasoning
+  ↓
+Hypothesis
+  ↓
+Conclusion
 ```
 
 ## Consecuencias
