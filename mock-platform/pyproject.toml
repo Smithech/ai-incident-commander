@@ -1,0 +1,9 @@
+[project]
+name = "ai-incident-commander-mock-platform"
+version = "0.1.0"
+description = "Mock external platform for AI Incident Commander"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]

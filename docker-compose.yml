@@ -10,6 +10,12 @@ services:
       postgres:
         condition: service_healthy
 
+  mock-platform:
+    build:
+      context: ./mock-platform
+    ports:
+      - "8001:8001"
+      
   postgres:
     image: postgres:16
     environment:
