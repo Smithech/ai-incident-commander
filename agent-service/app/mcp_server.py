@@ -78,9 +78,13 @@ async def get_recent_deployments(
     """Get recent deployments for a service."""
     client = create_mock_platform_client()
 
-    return await client.get_recent_deployments(
+    deployments = await client.get_recent_deployments(
         service=service,
         window_minutes=window_minutes,
+    )
+
+    return RecentDeploymentsResult(
+        deployments=deployments[:20],
     )
 
 
@@ -113,7 +117,11 @@ async def search_historical_incidents(
     """Search historical incidents for a service."""
     client = create_mock_platform_client()
 
-    return await client.search_historical_incidents(
+    incidents = await client.search_historical_incidents(
         service=service,
         query=query,
+    )
+
+    return HistoricalIncidentsResult(
+        incidents=incidents[:20],
     )

@@ -7,14 +7,21 @@ from sqlalchemy import delete
 
 from app.db import SessionFactory, init_db
 from app.main import app
-from app.models import IncidentModel
+from app.models import (
+    IncidentModel,
+    InvestigationEventModel,
+    InvestigationModel,
+)
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database():
     await init_db()
     yield
+
     async with SessionFactory() as session:
+        await session.execute(delete(InvestigationEventModel))
+        await session.execute(delete(InvestigationModel))
         await session.execute(delete(IncidentModel))
         await session.commit()
 

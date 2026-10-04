@@ -1,5 +1,6 @@
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
 from app.mcp_server import mcp
 
@@ -53,13 +54,12 @@ async def test_investigation_tools_return_structured_results():
 @pytest.mark.asyncio
 async def test_query_metrics_rejects_invalid_window():
     async with Client(mcp) as client:
-        result = await client.call_tool(
-            "query_metrics",
-            {
-                "service": "checkout-api",
-                "metric": "error_rate",
-                "window_minutes": 0,
-            },
-        )
-
-    assert result.is_error
+        with pytest.raises(ToolError):
+            await client.call_tool(
+                "query_metrics",
+                {
+                    "service": "checkout-api",
+                    "metric": "error_rate",
+                    "window_minutes": 0,
+                },
+            )
