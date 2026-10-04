@@ -4,6 +4,7 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from app.integrations.mock_platform import create_mock_platform_client
+from app.tools.get_commit import CommitResult
 from app.tools.get_recent_deployments import RecentDeploymentsResult
 from app.tools.query_metrics import MetricResult
 from app.tools.search_logs import SearchLogsResult
@@ -77,4 +78,19 @@ async def get_recent_deployments(
     return await client.get_recent_deployments(
         service=service,
         window_minutes=window_minutes,
+    )
+
+
+@mcp.tool
+async def get_commit(
+    commit_sha: Annotated[
+        str,
+        Field(min_length=1, max_length=100),
+    ],
+) -> CommitResult:
+    """Get details for a commit."""
+    client = create_mock_platform_client()
+
+    return await client.get_commit(
+        commit_sha=commit_sha,
     )
