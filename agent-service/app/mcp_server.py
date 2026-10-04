@@ -4,6 +4,7 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from app.integrations.mock_platform import create_mock_platform_client
+from app.tools.get_recent_deployments import RecentDeploymentsResult
 from app.tools.query_metrics import MetricResult
 from app.tools.search_logs import SearchLogsResult
 
@@ -55,5 +56,25 @@ async def query_metrics(
     return await client.query_metrics(
         service=service,
         metric=metric,
+        window_minutes=window_minutes,
+    )
+
+
+@mcp.tool
+async def get_recent_deployments(
+    service: Annotated[
+        str,
+        Field(min_length=1, max_length=100),
+    ],
+    window_minutes: Annotated[
+        int,
+        Field(gt=0, le=1440),
+    ] = 60,
+) -> RecentDeploymentsResult:
+    """Get recent deployments for a service."""
+    client = create_mock_platform_client()
+
+    return await client.get_recent_deployments(
+        service=service,
         window_minutes=window_minutes,
     )
