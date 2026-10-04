@@ -5,6 +5,7 @@ from fastmcp import Client
 from langgraph.graph import END, START, StateGraph
 
 from app.domain.evidence import Evidence
+from app.domain.hypothesis import Hypothesis
 from app.mcp_server import mcp
 from app.tools.get_commit import (
     CommitResult,
@@ -32,6 +33,7 @@ class InvestigationState(TypedDict):
     incident_id: UUID
     service: str
     evidence: list[Evidence]
+    hypotheses: list[Hypothesis]
 
 
 async def collect_evidence(
@@ -182,21 +184,68 @@ async def collect_evidence(
     }
 
 
+def generate_hypotheses(
+    state: InvestigationState,
+) -> dict:
+    """Generate deterministic hypotheses from collected evidence."""
+
+    evidence = state["evidence"]
+
+    database_error_evidence = [
+        item
+        for item in evidence
+        if (
+            item.source == "search_logs"
+            and item.data.get("level") == "ERROR"
+        )
+    ]
+
+    metric_evidence = [
+        item
+        for item in evidence
+        if (
+            item.source == "query_metrics"
+            and item.data.get("metric") == "error_rate"
+        )
+    ]
+
+    historical_evidence = [
+        item
+        for item in evidence
+        if item.source == "search_historical_incidents"
+    ]
+
+    supporting_evidence = (
+        database_error_evidence
+        + metric_evidence
+        + historical_evidence
+    )
+
+    if not supporting_evidence:
+        return {"hypotheses": []}
+
+    hypothesis = Hypothesis(
+        id="hypothesis-database-pool-exhaustion",
+        statement=(
+            "Database connection pool exhaustion is a possible "
+            "cause of the checkout-api incident."
+        ),
+        supporting_evidence_ids=[
+            item.id for item in supporting_evidence
+        ],
+        contradicting_evidence_ids=[],
+    )
+
+    return {"hypotheses": [hypothesis]}
+
+
 builder = StateGraph(InvestigationState)
 
-builder.add_node(
-    "collect_evidence",
-    collect_evidence,
-)
+builder.add_node("collect_evidence", collect_evidence)
+builder.add_node("generate_hypotheses", generate_hypotheses)
 
-builder.add_edge(
-    START,
-    "collect_evidence",
-)
-
-builder.add_edge(
-    "collect_evidence",
-    END,
-)
+builder.add_edge(START, "collect_evidence")
+builder.add_edge("collect_evidence", "generate_hypotheses")
+builder.add_edge("collect_evidence", END)
 
 investigation_graph = builder.compile() 

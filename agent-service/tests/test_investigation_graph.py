@@ -13,6 +13,7 @@ async def test_investigation_graph_collects_evidence():
             "incident_id": incident_id,
             "service": "checkout-api",
             "evidence": [],
+            "hypotheses": [],
         }
     )
 
@@ -64,3 +65,50 @@ async def test_investigation_graph_collects_evidence():
     )
 
     assert historical_evidence.data["id"] == "INC-42"
+
+    hypotheses = result["hypotheses"]
+
+    assert len(hypotheses) == 1
+
+    hypothesis = hypotheses[0]
+
+    assert (
+        hypothesis.statement
+        == "Database connection pool exhaustion is a possible "
+        "cause of the checkout-api incident."
+    )
+
+    assert hypothesis.contradicting_evidence_ids == []
+
+    assert len(hypothesis.supporting_evidence_ids) == 4
+
+    evidence_ids = {
+        item.id
+        for item in evidence
+    }
+
+    assert set(hypothesis.supporting_evidence_ids).issubset(
+        evidence_ids
+    )
+
+    supporting_evidence = [
+        item
+        for item in evidence
+        if item.id in hypothesis.supporting_evidence_ids
+    ]
+
+    assert {item.source for item in supporting_evidence} == {
+        "search_logs",
+        "query_metrics",
+        "search_historical_incidents",
+    }
+
+    assert not {
+        item.source
+        for item in supporting_evidence
+    }.intersection(
+        {
+            "get_recent_deployments",
+            "get_commit",
+        }
+    )
