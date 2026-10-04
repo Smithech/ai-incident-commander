@@ -7,6 +7,9 @@ from app.integrations.mock_platform import create_mock_platform_client
 from app.tools.get_commit import CommitResult
 from app.tools.get_recent_deployments import RecentDeploymentsResult
 from app.tools.query_metrics import MetricResult
+from app.tools.search_historical_incidents import (
+    HistoricalIncidentsResult,
+)
 from app.tools.search_logs import SearchLogsResult
 
 mcp = FastMCP("AI Incident Commander Tools")
@@ -93,4 +96,24 @@ async def get_commit(
 
     return await client.get_commit(
         commit_sha=commit_sha,
+    )
+
+
+@mcp.tool
+async def search_historical_incidents(
+    service: Annotated[
+        str,
+        Field(min_length=1, max_length=100),
+    ],
+    query: Annotated[
+        str,
+        Field(min_length=1, max_length=200),
+    ],
+) -> HistoricalIncidentsResult:
+    """Search historical incidents for a service."""
+    client = create_mock_platform_client()
+
+    return await client.search_historical_incidents(
+        service=service,
+        query=query,
     )
