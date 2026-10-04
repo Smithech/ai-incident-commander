@@ -18,12 +18,15 @@ async def test_investigation_graph_collects_evidence_through_mcp():
     assert result["incident_id"] == state["incident_id"]
     assert result["service"] == "checkout-api"
 
-    assert len(result["evidence"]) == 2
+    assert len(result["evidence"]) == 6
 
-    assert all(
-        evidence.source == "search_logs"
-        for evidence in result["evidence"]
-    )
+    sources = [evidence.source for evidence in result["evidence"]]
+
+    assert sources.count("search_logs") == 2
+    assert sources.count("query_metrics") == 1
+    assert sources.count("get_recent_deployments") == 1
+    assert sources.count("get_commit") == 1
+    assert sources.count("search_historical_incidents") == 1
 
     assert any(
         "Database connection timeout" in evidence.summary
