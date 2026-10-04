@@ -44,7 +44,7 @@ async def collect_evidence(
             "search_logs",
             {
                 "service": state["service"],
-                "query": "error",
+                "query": "database",
             },
         )
 
@@ -152,7 +152,7 @@ async def collect_evidence(
             "search_historical_incidents",
             {
                 "service": state["service"],
-                "query": "error",
+                "query": "database",
             },
         )
 
