@@ -4,6 +4,7 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from app.integrations.mock_platform import create_mock_platform_client
+from app.tools.query_metrics import MetricResult
 from app.tools.search_logs import SearchLogsResult
 
 mcp = FastMCP("AI Incident Commander Tools")
@@ -30,4 +31,29 @@ async def search_logs(
 
     return SearchLogsResult(
         matches=logs[:100],
+    )
+
+
+@mcp.tool
+async def query_metrics(
+    service: Annotated[
+        str,
+        Field(min_length=1, max_length=100),
+    ],
+    metric: Annotated[
+        str,
+        Field(min_length=1, max_length=200),
+    ],
+    window_minutes: Annotated[
+        int,
+        Field(gt=0, le=1440),
+    ] = 30,
+) -> MetricResult:
+    """Query a metric for a service."""
+    client = create_mock_platform_client()
+
+    return await client.query_metrics(
+        service=service,
+        metric=metric,
+        window_minutes=window_minutes,
     )
