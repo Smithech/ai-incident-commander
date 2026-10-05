@@ -1,5 +1,5 @@
 from typing import TypedDict
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastmcp import Client
 from langgraph.graph import END, START, StateGraph
@@ -7,6 +7,11 @@ from langgraph.graph import END, START, StateGraph
 from app.domain.evidence import Evidence
 from app.domain.hypothesis import Hypothesis
 from app.mcp_server import mcp
+from app.services.hypothesis_generation import (
+    HypothesisGenerationInput,
+    validate_evidence_references,
+)
+from app.services.llm import LLMClient, NvidiaLLMClient
 from app.tools.get_commit import (
     CommitResult,
     commit_result_to_evidence,
@@ -32,6 +37,8 @@ from app.tools.search_logs import (
 class InvestigationState(TypedDict):
     incident_id: UUID
     service: str
+    incident_title: str
+    incident_description: str
     evidence: list[Evidence]
     hypotheses: list[Hypothesis]
 
@@ -184,59 +191,39 @@ async def collect_evidence(
     }
 
 
-def generate_hypotheses(
+async def generate_hypotheses(
     state: InvestigationState,
+    llm_client: LLMClient | None = None,
 ) -> dict:
-    """Generate deterministic hypotheses from collected evidence."""
+    """Generate hypotheses from collected evidence using the LLM."""
 
-    evidence = state["evidence"]
+    client = llm_client or NvidiaLLMClient()
 
-    database_error_evidence = [
-        item
-        for item in evidence
-        if (
-            item.source == "search_logs"
-            and item.data.get("level") == "ERROR"
-        )
-    ]
-
-    metric_evidence = [
-        item
-        for item in evidence
-        if (
-            item.source == "query_metrics"
-            and item.data.get("metric") == "error_rate"
-        )
-    ]
-
-    historical_evidence = [
-        item
-        for item in evidence
-        if item.source == "search_historical_incidents"
-    ]
-
-    supporting_evidence = (
-        database_error_evidence
-        + metric_evidence
-        + historical_evidence
+    request = HypothesisGenerationInput(
+        incident_service=state["service"],
+        incident_title=state["incident_title"],
+        incident_description=state["incident_description"],
+        evidence=state["evidence"],
     )
 
-    if not supporting_evidence:
-        return {"hypotheses": []}
+    result = await client.generate_hypotheses(request)
 
-    hypothesis = Hypothesis(
-        id="hypothesis-database-pool-exhaustion",
-        statement=(
-            "Database connection pool exhaustion is a possible "
-            "cause of the checkout-api incident."
-        ),
-        supporting_evidence_ids=[
-            item.id for item in supporting_evidence
-        ],
-        contradicting_evidence_ids=[],
+    validate_evidence_references(
+        result=result,
+        evidence=state["evidence"],
     )
 
-    return {"hypotheses": [hypothesis]}
+    hypotheses = [
+        Hypothesis(
+            id=str(uuid4()),
+            statement=candidate.statement,
+            supporting_evidence_ids=candidate.supporting_evidence_ids,
+            contradicting_evidence_ids=candidate.contradicting_evidence_ids,
+        )
+        for candidate in result.hypotheses
+    ]
+
+    return {"hypotheses": hypotheses}
 
 
 builder = StateGraph(InvestigationState)

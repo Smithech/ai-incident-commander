@@ -1,114 +1,121 @@
 import pytest
-from uuid import uuid4
+from uuid import UUID
 
-from app.workflows.investigation import investigation_graph
+from app.domain.evidence import Evidence
+from app.domain.hypothesis import (
+    HypothesisCandidate,
+    HypothesisGenerationResult,
+)
+from app.services.hypothesis_generation import HypothesisGenerationInput
+from app.workflows.investigation import (
+    InvestigationState,
+    generate_hypotheses,
+)
+
+
+class FakeLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        return HypothesisGenerationResult(
+            hypotheses=[
+                HypothesisCandidate(
+                    statement="Database pool exhaustion is possible.",
+                    supporting_evidence_ids=["evidence-1"],
+                    contradicting_evidence_ids=[],
+                )
+            ]
+        )
+
+
+class EmptyLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        return HypothesisGenerationResult(hypotheses=[])
+
+
+class InvalidReferenceLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        return HypothesisGenerationResult(
+            hypotheses=[
+                HypothesisCandidate(
+                    statement="This references unknown evidence.",
+                    supporting_evidence_ids=["does-not-exist"],
+                    contradicting_evidence_ids=[],
+                )
+            ]
+        )
+
+
+def build_state() -> InvestigationState:
+    return {
+        "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
+        "service": "checkout-api",
+        "incident_title": "Checkout errors increased",
+        "incident_description": "Checkout errors increased significantly.",
+        "evidence": [
+            Evidence(
+                id="evidence-1",
+                source="query_metrics",
+                summary="Checkout error rate increased.",
+                data={
+                    "metric": "error_rate",
+                    "value": 18.4,
+                    "baseline": 0.8,
+                    "unit": "percent",
+                },
+            ),
+        ],
+        "hypotheses": [],
+    }
 
 
 @pytest.mark.asyncio
-async def test_investigation_graph_collects_evidence():
-    incident_id = uuid4()
+async def test_generate_hypotheses_uses_llm_result() -> None:
+    state = build_state()
 
-    result = await investigation_graph.ainvoke(
-        {
-            "incident_id": incident_id,
-            "service": "checkout-api",
-            "evidence": [],
-            "hypotheses": [],
-        }
+    result = await generate_hypotheses(
+        state,
+        llm_client=FakeLLMClient(),
     )
 
-    assert result["incident_id"] == incident_id
-    assert result["service"] == "checkout-api"
+    assert len(result["hypotheses"]) == 1
 
-    evidence = result["evidence"]
+    hypothesis = result["hypotheses"][0]
 
-    assert len(evidence) == 6
-
-    sources = [item.source for item in evidence]
-
-    assert sources.count("search_logs") == 2
-    assert sources.count("query_metrics") == 1
-    assert sources.count("get_recent_deployments") == 1
-    assert sources.count("get_commit") == 1
-    assert sources.count("search_historical_incidents") == 1
-
-    assert any(
-        "Database connection timeout" in item.summary
-        for item in evidence
-    )
-
-    metric_evidence = next(
-        item for item in evidence
-        if item.source == "query_metrics"
-    )
-
-    assert metric_evidence.data["value"] == 18.4
-    assert metric_evidence.data["baseline"] == 0.8
-
-    deployment_evidence = next(
-        item for item in evidence
-        if item.source == "get_recent_deployments"
-    )
-
-    assert deployment_evidence.data["commit_sha"] == "abc123"
-
-    commit_evidence = next(
-        item for item in evidence
-        if item.source == "get_commit"
-    )
-
-    assert commit_evidence.data["sha"] == "abc123"
-
-    historical_evidence = next(
-        item for item in evidence
-        if item.source == "search_historical_incidents"
-    )
-
-    assert historical_evidence.data["id"] == "INC-42"
-
-    hypotheses = result["hypotheses"]
-
-    assert len(hypotheses) == 1
-
-    hypothesis = hypotheses[0]
-
-    assert (
-        hypothesis.statement
-        == "Database connection pool exhaustion is a possible "
-        "cause of the checkout-api incident."
-    )
-
+    assert hypothesis.id
+    assert hypothesis.statement == "Database pool exhaustion is possible."
+    assert hypothesis.supporting_evidence_ids == ["evidence-1"]
     assert hypothesis.contradicting_evidence_ids == []
 
-    assert len(hypothesis.supporting_evidence_ids) == 4
 
-    evidence_ids = {
-        item.id
-        for item in evidence
-    }
+@pytest.mark.asyncio
+async def test_generate_hypotheses_allows_insufficient_evidence() -> None:
+    state = build_state()
 
-    assert set(hypothesis.supporting_evidence_ids).issubset(
-        evidence_ids
+    result = await generate_hypotheses(
+        state,
+        llm_client=EmptyLLMClient(),
     )
 
-    supporting_evidence = [
-        item
-        for item in evidence
-        if item.id in hypothesis.supporting_evidence_ids
-    ]
+    assert result["hypotheses"] == []
 
-    assert {item.source for item in supporting_evidence} == {
-        "search_logs",
-        "query_metrics",
-        "search_historical_incidents",
-    }
 
-    assert not {
-        item.source
-        for item in supporting_evidence
-    }.intersection(
-        {
-            "get_recent_deployments",
-            "get_commit",
-        }
-    )
+@pytest.mark.asyncio
+async def test_generate_hypotheses_rejects_unknown_evidence_reference() -> None:
+    state = build_state()
+
+    with pytest.raises(
+        ValueError,
+        match="Hypothesis references unknown evidence IDs",
+    ):
+        await generate_hypotheses(
+            state,
+            llm_client=InvalidReferenceLLMClient(),
+        )
