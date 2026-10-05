@@ -7,6 +7,8 @@ ENV PYTHONPATH=/app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
+COPY alembic.ini ./
+COPY alembic ./alembic
 COPY app ./app
 COPY tests ./tests
 
