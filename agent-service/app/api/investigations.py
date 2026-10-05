@@ -1,13 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.db import SessionFactory
 from app.repositories.incident import IncidentRepository
 from app.repositories.investigation import InvestigationRepository
 from app.services.investigation import InvestigationService
+from app.services.llm import LLMClient, NvidiaLLMClient
+
 
 router = APIRouter()
 
@@ -19,6 +21,10 @@ class InvestigationResponse(BaseModel):
     created_at: datetime
 
 
+def get_llm_client() -> LLMClient:
+    return NvidiaLLMClient()
+
+
 @router.post(
     "/incidents/{incident_id}/investigations",
     response_model=InvestigationResponse,
@@ -27,6 +33,7 @@ class InvestigationResponse(BaseModel):
 async def create_investigation(
     incident_id: UUID,
     background_tasks: BackgroundTasks,
+    llm_client: LLMClient = Depends(get_llm_client),
 ):
     async with SessionFactory() as session:
         incident_repository = IncidentRepository(session)
@@ -40,7 +47,7 @@ async def create_investigation(
             )
 
         service = InvestigationService(
-            InvestigationRepository(session)
+            repository=InvestigationRepository(session),
         )
 
         investigation = await service.create_investigation(
@@ -52,6 +59,7 @@ async def create_investigation(
     background_tasks.add_task(
         run_investigation,
         investigation.id,
+        llm_client,
     )
 
     return investigation
@@ -66,7 +74,7 @@ async def get_investigation(
 ):
     async with SessionFactory() as session:
         service = InvestigationService(
-            InvestigationRepository(session)
+            repository=InvestigationRepository(session),
         )
 
         investigation = await service.get_investigation(
@@ -84,10 +92,15 @@ async def get_investigation(
 
 async def run_investigation(
     investigation_id: UUID,
+    llm_client: LLMClient,
 ) -> None:
     async with SessionFactory() as session:
         service = InvestigationService(
             InvestigationRepository(session)
         )
 
-        await service.run_investigation(investigation_id)
+        await service.run_investigation(
+            investigation_id,
+            incident_repository=IncidentRepository(session),
+            llm_client=llm_client,
+        )

@@ -2,7 +2,13 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from app.domain.investigation import Investigation, InvestigationStatus
+from app.repositories.incident import IncidentRepository
 from app.repositories.investigation import InvestigationRepository
+from app.services.llm import LLMClient
+from app.workflows.investigation import (
+    InvestigationState,
+    build_investigation_graph,
+)
 
 
 class InvestigationService:
@@ -39,8 +45,29 @@ class InvestigationService:
     async def run_investigation(
         self,
         investigation_id: UUID,
+        *,
+        incident_repository: IncidentRepository,
+        llm_client: LLMClient,
     ) -> None:
         try:
+            investigation = await self.repository.get(
+                investigation_id
+            )
+
+            if investigation is None:
+                raise ValueError(
+                    f"Investigation {investigation_id} not found"
+                )
+
+            incident = await incident_repository.get(
+                investigation.incident_id
+            )
+
+            if incident is None:
+                raise ValueError(
+                    f"Incident {investigation.incident_id} not found"
+                )
+
             await self.repository.update_status(
                 investigation_id,
                 InvestigationStatus.RUNNING,
@@ -53,8 +80,20 @@ class InvestigationService:
 
             await self.repository.session.commit()
 
-            # Placeholder.
-            # Más adelante aquí entrará el workflow de investigación.
+            graph = build_investigation_graph(
+                llm_client=llm_client,
+            )
+
+            initial_state: InvestigationState = {
+                "incident_id": incident.id,
+                "service": incident.service,
+                "incident_title": incident.title,
+                "incident_description": incident.description,
+                "evidence": [],
+                "hypotheses": [],
+            }
+
+            await graph.ainvoke(initial_state)
 
             await self.repository.update_status(
                 investigation_id,

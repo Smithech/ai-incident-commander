@@ -4,13 +4,41 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 from uuid import UUID
 
+from app.api.investigations import get_llm_client
 from app.db import SessionFactory, init_db
+from app.domain.hypothesis import (
+    HypothesisCandidate,
+    HypothesisGenerationResult,
+)
 from app.main import app
 from app.models import (
     IncidentModel,
     InvestigationEventModel,
     InvestigationModel,
 )
+from app.services.hypothesis_generation import HypothesisGenerationInput
+from app.services.llm import LLMClient
+
+
+class FakeLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        evidence_id = request.evidence[0].id
+
+        return HypothesisGenerationResult(
+            hypotheses=[
+                HypothesisCandidate(
+                    statement=(
+                        "The checkout service is experiencing "
+                        "database-related failures."
+                    ),
+                    supporting_evidence_ids=[evidence_id],
+                    contradicting_evidence_ids=[],
+                )
+            ]
+        )
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -35,64 +63,70 @@ async def test_create_investigation_lifecycle():
         "severity": "critical",
     }
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        incident_response = await client.post(
-            "/incidents",
-            json=incident_payload,
-        )
+    app.dependency_overrides[get_llm_client] = lambda: FakeLLMClient()
 
-        assert incident_response.status_code == 201
-
-        incident_id = UUID(
-            incident_response.json()["id"]
-        )
-
-        investigation_response = await client.post(
-            f"/incidents/{incident_id}/investigations"
-        )
-
-        assert investigation_response.status_code == 202
-
-        investigation = investigation_response.json()
-
-    investigation_id = UUID(investigation["id"])
-
-    # El contrato HTTP devuelve la investigación recién creada.
-    assert investigation["status"] == "pending"
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        get_response = await client.get(
-            f"/investigations/{investigation_id}"
-        )
-
-    assert get_response.status_code == 200
-    assert get_response.json()["status"] == "completed"
-
-    async with SessionFactory() as session:
-        events = (
-            await session.scalars(
-                select(InvestigationEventModel)
-                .where(
-                    InvestigationEventModel.investigation_id
-                    == investigation_id
+    try:
+        async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                incident_response = await client.post(
+                    "/incidents",
+                    json=incident_payload,
                 )
-                .order_by(
-                    InvestigationEventModel.created_at
+        
+                assert incident_response.status_code == 201
+        
+                incident_id = UUID(
+                    incident_response.json()["id"]
                 )
+        
+                investigation_response = await client.post(
+                    f"/incidents/{incident_id}/investigations"
+                )
+        
+                assert investigation_response.status_code == 202
+        
+                investigation = investigation_response.json()
+
+        investigation_id = UUID(investigation["id"])
+
+        # El contrato HTTP devuelve la investigación recién creada.
+        assert investigation["status"] == "pending"
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            get_response = await client.get(
+                f"/investigations/{investigation_id}"
             )
-        ).all()
 
-    assert [event.event_type for event in events] == [
-        "investigation.created",
-        "investigation.started",
-        "investigation.completed",
-    ]
+        assert get_response.status_code == 200
+        assert get_response.json()["status"] == "completed"
+
+        async with SessionFactory() as session:
+            events = (
+                await session.scalars(
+                    select(InvestigationEventModel)
+                    .where(
+                        InvestigationEventModel.investigation_id
+                        == investigation_id
+                    )
+                    .order_by(
+                        InvestigationEventModel.created_at
+                    )
+                )
+            ).all()
+
+        assert [event.event_type for event in events] == [
+            "investigation.created",
+            "investigation.started",
+            "investigation.completed",
+        ]
+        
+    finally:
+            app.dependency_overrides.clear()    
 
 
 @pytest.mark.asyncio
