@@ -28,3 +28,4 @@ Lista de ADR:
 - ADR-008: Deterministic evaluation
 - ADR-009: Ejecución asíncrona de investigaciones
 - ADR-010: LangGraph workflow state vs domain state
+- ADR-011: LLM provider and model configuration
