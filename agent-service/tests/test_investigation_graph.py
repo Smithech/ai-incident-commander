@@ -9,6 +9,7 @@ from app.domain.hypothesis import (
 from app.services.hypothesis_generation import HypothesisGenerationInput
 from app.workflows.investigation import (
     InvestigationState,
+    build_investigation_graph,
     generate_hypotheses,
 )
 
@@ -22,7 +23,7 @@ class FakeLLMClient:
             hypotheses=[
                 HypothesisCandidate(
                     statement="Database pool exhaustion is possible.",
-                    supporting_evidence_ids=["evidence-1"],
+                    supporting_evidence_ids=[request.evidence[0].id],
                     contradicting_evidence_ids=[],
                 )
             ]
@@ -119,3 +120,26 @@ async def test_generate_hypotheses_rejects_unknown_evidence_reference() -> None:
             state,
             llm_client=InvalidReferenceLLMClient(),
         )
+
+
+@pytest.mark.asyncio
+async def test_investigation_graph_generates_hypotheses() -> None:
+    state = build_state()
+
+    graph = build_investigation_graph(
+        llm_client=FakeLLMClient(),
+    )
+
+    result = await graph.ainvoke(state)
+
+    assert len(result["hypotheses"]) == 1
+
+    hypothesis = result["hypotheses"][0]
+
+    assert hypothesis.id
+    assert hypothesis.statement == "Database pool exhaustion is possible."
+    assert hypothesis.supporting_evidence_ids
+    assert (
+        hypothesis.supporting_evidence_ids[0]
+        in {evidence.id for evidence in result["evidence"]}
+    )

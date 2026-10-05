@@ -11,7 +11,7 @@ from app.services.hypothesis_generation import (
     HypothesisGenerationInput,
     validate_evidence_references,
 )
-from app.services.llm import LLMClient, NvidiaLLMClient
+from app.services.llm import LLMClient
 from app.tools.get_commit import (
     CommitResult,
     commit_result_to_evidence,
@@ -193,11 +193,9 @@ async def collect_evidence(
 
 async def generate_hypotheses(
     state: InvestigationState,
-    llm_client: LLMClient | None = None,
+    llm_client: LLMClient
 ) -> dict:
     """Generate hypotheses from collected evidence using the LLM."""
-
-    client = llm_client or NvidiaLLMClient()
 
     request = HypothesisGenerationInput(
         incident_service=state["service"],
@@ -206,7 +204,7 @@ async def generate_hypotheses(
         evidence=state["evidence"],
     )
 
-    result = await client.generate_hypotheses(request)
+    result = await llm_client.generate_hypotheses(request)
 
     validate_evidence_references(
         result=result,
@@ -226,13 +224,24 @@ async def generate_hypotheses(
     return {"hypotheses": hypotheses}
 
 
-builder = StateGraph(InvestigationState)
+def build_investigation_graph(
+    llm_client: LLMClient,
+):
+    async def generate_hypotheses_node(
+        state: InvestigationState,
+    ) -> dict:
+        return await generate_hypotheses(
+            state,
+            llm_client=llm_client,
+        )
 
-builder.add_node("collect_evidence", collect_evidence)
-builder.add_node("generate_hypotheses", generate_hypotheses)
+    builder = StateGraph(InvestigationState)
 
-builder.add_edge(START, "collect_evidence")
-builder.add_edge("collect_evidence", "generate_hypotheses")
-builder.add_edge("collect_evidence", END)
+    builder.add_node("collect_evidence", collect_evidence)
+    builder.add_node("generate_hypotheses", generate_hypotheses_node)
 
-investigation_graph = builder.compile() 
+    builder.add_edge(START, "collect_evidence")
+    builder.add_edge("collect_evidence", "generate_hypotheses")
+    builder.add_edge("generate_hypotheses", END)
+
+    return builder.compile()
