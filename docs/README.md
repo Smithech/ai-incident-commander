@@ -29,3 +29,4 @@ Lista de ADR:
 - ADR-009: Ejecución asíncrona de investigaciones
 - ADR-010: LangGraph workflow state vs domain state
 - ADR-011: LLM provider and model configuration
+- ADR-012: Persistencia del resultado de una investigación
