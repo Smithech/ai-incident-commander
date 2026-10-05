@@ -71,9 +71,10 @@ La persistencia del dominio representa información propia de la aplicación y d
 Domain Persistence
 
 PostgreSQL
-   ├── Incident
-   ├── Investigation
-   └── InvestigationEvent
+  ├── Incident
+  ├── Investigation
+  │     └── result (JSONB)
+  └── InvestigationEvent
 ```
 
 ### Persistencia de workflow
@@ -86,6 +87,19 @@ Workflow Persistence
 LangGraph
    └── checkpoint / workflow execution state
 ```
+
+La inicialización inicial del esquema se realizó mediante
+`Base.metadata.create_all()` como una decisión provisional para el MVP.
+
+Con la primera evolución real del esquema, la incorporación de
+`Investigation.result` como columna `JSONB`, esta estrategia deja de ser
+suficiente porque `create_all()` no modifica tablas existentes.
+
+A partir de este punto se utilizará Alembic para gestionar la evolución
+versionada del esquema de PostgreSQL.
+
+`Base.metadata.create_all()` no será utilizado como mecanismo de migración
+del esquema en entornos donde existan migraciones versionadas.
 
 ## Consecuencias
 
@@ -109,4 +123,10 @@ Ninguno
 
 ## Notas
 
-Ninguna. 
+La inicialización inicial mediante `Base.metadata.create_all()` fue
+intencionalmente provisional para evitar introducir Alembic antes de que
+existiera una necesidad real de evolución del esquema.
+
+La incorporación de `Investigation.result` constituye esa primera necesidad
+real. Por ello, Alembic se introduce en este punto del desarrollo y será el
+mecanismo utilizado para las futuras modificaciones versionadas del esquema.
