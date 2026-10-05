@@ -5,6 +5,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       MOCK_PLATFORM_URL: ${MOCK_PLATFORM_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: ${LLM_MODEL}
     ports:
       - "8000:8000"
     depends_on:
