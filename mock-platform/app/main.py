@@ -11,6 +11,13 @@ from app.models import (
     MetricResult,
 )
 
+from app.scenarios.bad_deployment import (
+    COMMITS as BAD_DEPLOYMENT_COMMITS,
+    DEPLOYMENTS as BAD_DEPLOYMENT_DEPLOYMENTS,
+    HISTORICAL_INCIDENTS as BAD_DEPLOYMENT_HISTORICAL_INCIDENTS,
+    LOGS as BAD_DEPLOYMENT_LOGS,
+    METRICS as BAD_DEPLOYMENT_METRICS,
+)
 from app.scenarios.database_pool_exhaustion import (
     COMMITS as SCENARIO_COMMITS,
     DEPLOYMENTS as SCENARIO_DEPLOYMENTS,
@@ -25,7 +32,24 @@ SCENARIO = os.getenv(
     "database_pool_exhaustion",
 )
 
-if SCENARIO != "database_pool_exhaustion":
+SCENARIOS = {
+    "database_pool_exhaustion": (
+        SCENARIO_LOGS,
+        SCENARIO_METRICS,
+        SCENARIO_DEPLOYMENTS,
+        SCENARIO_COMMITS,
+        SCENARIO_HISTORICAL_INCIDENTS,
+    ),
+    "bad_deployment": (
+        BAD_DEPLOYMENT_LOGS,
+        BAD_DEPLOYMENT_METRICS,
+        BAD_DEPLOYMENT_DEPLOYMENTS,
+        BAD_DEPLOYMENT_COMMITS,
+        BAD_DEPLOYMENT_HISTORICAL_INCIDENTS,
+    ),
+}
+
+if SCENARIO not in SCENARIOS:
     raise ValueError(
         f"Unsupported mock platform scenario: {SCENARIO}"
     )
@@ -34,11 +58,13 @@ if SCENARIO != "database_pool_exhaustion":
 app = FastAPI(title="Mock Platform")
 
 
-LOGS = SCENARIO_LOGS
-METRICS = SCENARIO_METRICS
-DEPLOYMENTS = SCENARIO_DEPLOYMENTS
-COMMITS = SCENARIO_COMMITS
-HISTORICAL_INCIDENTS = SCENARIO_HISTORICAL_INCIDENTS
+(
+    LOGS,
+    METRICS,
+    DEPLOYMENTS,
+    COMMITS,
+    HISTORICAL_INCIDENTS,
+) = SCENARIOS[SCENARIO]
 
 
 @app.get("/health")
