@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.investigation import (
     Investigation,
     InvestigationEvent,
+    InvestigationResult,
     InvestigationStatus,
 )
 from app.models import InvestigationEventModel, InvestigationModel
@@ -63,6 +64,23 @@ class InvestigationRepository:
         model.status = status.value
 
         await self.session.flush()
+
+    async def update_result(
+            self,
+            investigation_id: UUID,
+            result: InvestigationResult,
+        ) -> None:
+            model = await self.session.get(
+                InvestigationModel,
+                investigation_id,
+            )
+    
+            if model is None:
+                raise ValueError("Investigation not found")
+    
+            model.result = result.model_dump(mode="json")
+    
+            await self.session.flush()
 
     async def add_event(
         self,

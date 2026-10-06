@@ -3,6 +3,11 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
+from pydantic import BaseModel
+
+from app.domain.evidence import Evidence
+from app.domain.hypothesis import Hypothesis
+
 
 class InvestigationStatus(StrEnum):
     PENDING = "pending"
@@ -11,6 +16,11 @@ class InvestigationStatus(StrEnum):
     FAILED = "failed"
 
 
+class InvestigationResult(BaseModel):
+    evidence: list[Evidence]
+    hypotheses: list[Hypothesis]
+
+ 
 @dataclass
 class Investigation:
     id: UUID
