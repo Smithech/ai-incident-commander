@@ -41,11 +41,17 @@ class InvestigationRepository:
         if model is None:
             return None
 
+        result = None
+
+        if model.result is not None:
+            result = InvestigationResult.model_validate(model.result)
+
         return Investigation(
             id=model.id,
             incident_id=model.incident_id,
             status=InvestigationStatus(model.status),
             created_at=model.created_at,
+            result=result,
         )
 
     async def update_status(
@@ -66,21 +72,21 @@ class InvestigationRepository:
         await self.session.flush()
 
     async def update_result(
-            self,
-            investigation_id: UUID,
-            result: InvestigationResult,
-        ) -> None:
-            model = await self.session.get(
-                InvestigationModel,
-                investigation_id,
-            )
+        self,
+        investigation_id: UUID,
+        result: InvestigationResult,
+    ) -> None:
+        model = await self.session.get(
+            InvestigationModel,
+            investigation_id,
+        )
     
-            if model is None:
-                raise ValueError("Investigation not found")
+        if model is None:
+            raise ValueError("Investigation not found")
     
-            model.result = result.model_dump(mode="json")
+        model.result = result.model_dump(mode="json")
     
-            await self.session.flush()
+        await self.session.flush()
 
     async def add_event(
         self,

@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.db import SessionFactory
+from app.domain.investigation import InvestigationResult
 from app.repositories.incident import IncidentRepository
 from app.repositories.investigation import InvestigationRepository
 from app.services.investigation import InvestigationService
@@ -19,6 +20,7 @@ class InvestigationResponse(BaseModel):
     incident_id: UUID
     status: str
     created_at: datetime
+    result: InvestigationResult | None = None
 
 
 def get_llm_client() -> LLMClient:

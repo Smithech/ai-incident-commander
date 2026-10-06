@@ -101,7 +101,31 @@ async def test_create_investigation_lifecycle():
             )
 
         assert get_response.status_code == 200
+
+        investigation_response = get_response.json()
+
         assert get_response.json()["status"] == "completed"
+        assert investigation_response["result"] is not None
+
+        result = investigation_response["result"]
+
+        assert "evidence" in result
+        assert "hypotheses" in result
+
+        assert len(result["evidence"]) > 0
+        assert len(result["hypotheses"]) > 0
+
+        async with SessionFactory() as session:
+            investigation_model = await session.get(
+                InvestigationModel,
+                investigation_id,
+            )
+
+        assert investigation_model is not None
+        assert investigation_model.result is not None
+
+        assert "evidence" in investigation_model.result
+        assert "hypotheses" in investigation_model.result
 
         async with SessionFactory() as session:
             events = (

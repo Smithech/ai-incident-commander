@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from app.domain.investigation import Investigation, InvestigationStatus
+from app.domain.investigation import Investigation, InvestigationResult, InvestigationStatus
 from app.repositories.incident import IncidentRepository
 from app.repositories.investigation import InvestigationRepository
 from app.services.llm import LLMClient
@@ -93,7 +93,17 @@ class InvestigationService:
                 "hypotheses": [],
             }
 
-            await graph.ainvoke(initial_state)
+            final_state = await graph.ainvoke(initial_state)
+
+            result = InvestigationResult(
+                evidence=final_state["evidence"],
+                hypotheses=final_state["hypotheses"],
+            )
+
+            await self.repository.update_result(
+                investigation_id,
+                result,
+            )
 
             await self.repository.update_status(
                 investigation_id,

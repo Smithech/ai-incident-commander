@@ -27,6 +27,7 @@ class Investigation:
     incident_id: UUID
     status: InvestigationStatus
     created_at: datetime
+    result: InvestigationResult | None = None
 
 
 @dataclass
