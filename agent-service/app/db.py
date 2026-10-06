@@ -1,7 +1,5 @@
 import os
 
-from app.models import Base
-
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -20,8 +18,3 @@ SessionFactory = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
-
-
-async def init_db() -> None:
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
