@@ -97,5 +97,9 @@ NVIDIA Build API
 
 ### Negativas
 
+- La abstracción `LLMClient` no garantiza que todos los proveedores sean realmente intercambiables.
+- Algunas capacidades específicas del proveedor/modelo pueden requerir adaptación dentro del cliente concreto.
+- El proveedor actual sigue siendo una dependencia operacional del MVP.
+
 ## Notas
 
