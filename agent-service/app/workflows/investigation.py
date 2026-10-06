@@ -241,7 +241,25 @@ def build_investigation_graph(
     builder.add_node("generate_hypotheses", generate_hypotheses_node)
 
     builder.add_edge(START, "collect_evidence")
-    builder.add_edge("collect_evidence", "generate_hypotheses")
+
+    builder.add_conditional_edges(
+        "collect_evidence",
+        should_generate_hypotheses,
+        {
+            "end": END,
+            "generate_hypotheses": "generate_hypotheses",
+        },
+    )
+    
     builder.add_edge("generate_hypotheses", END)
 
     return builder.compile()
+
+
+def should_generate_hypotheses(
+    state: InvestigationState,
+) -> str:
+    if not state["evidence"]:
+        return "end"
+
+    return "generate_hypotheses"

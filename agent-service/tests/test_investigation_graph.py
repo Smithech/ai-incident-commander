@@ -11,6 +11,7 @@ from app.workflows.investigation import (
     InvestigationState,
     build_investigation_graph,
     generate_hypotheses,
+    should_generate_hypotheses
 )
 
 
@@ -27,6 +28,16 @@ class FakeLLMClient:
                     contradicting_evidence_ids=[],
                 )
             ]
+        )
+
+
+class FailingLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        raise AssertionError(
+            "LLM should not be called when evidence is insufficient"
         )
 
 
@@ -143,3 +154,53 @@ async def test_investigation_graph_generates_hypotheses() -> None:
         hypothesis.supporting_evidence_ids[0]
         in {evidence.id for evidence in result["evidence"]}
     )
+
+
+def test_should_end_when_evidence_is_empty():
+    state = {
+        "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
+        "service": "checkout-api",
+        "incident_title": "Checkout latency increased",
+        "incident_description": "Checkout API latency increased",
+        "evidence": [],
+        "hypotheses": [],
+    }
+
+    assert should_generate_hypotheses(state) == "end"
+
+
+def test_should_generate_hypotheses_when_evidence_exists():
+    state = {
+        "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
+        "service": "checkout-api",
+        "incident_title": "Checkout latency increased",
+        "incident_description": "Checkout API latency increased",
+        "evidence": [
+            Evidence(
+                id="log-1",
+                source="logs",
+                summary="Database connection pool exhausted",
+                data={
+                    "message": "connection pool exhausted",
+                },
+            )
+        ],
+        "hypotheses": [],
+    }
+
+    assert should_generate_hypotheses(state) == "generate_hypotheses"
+
+
+@pytest.mark.asyncio
+async def test_investigation_graph_skips_llm_when_evidence_is_empty() -> None:
+    state = build_state()
+    state["evidence"] = []
+
+    graph = build_investigation_graph(
+        llm_client=FailingLLMClient(),
+    )
+
+    result = await graph.ainvoke(state)
+
+    assert result["evidence"] == []
+    assert result["hypotheses"] == []
