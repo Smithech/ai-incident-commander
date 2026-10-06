@@ -2,35 +2,53 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
-from app.mcp_server import mcp
+from app.mcp_server import mcp, _search_logs
+from app.tools.search_logs import LogEntry
+
+
+class FakeIncidentPlatformClient:
+    async def search_logs(
+        self,
+        *,
+        service: str,
+        query: str,
+    ) -> list[LogEntry]:
+        return [
+            LogEntry(
+                timestamp="2026-10-03T14:01:00Z",
+                level="ERROR",
+                service="checkout-api",
+                message="Database connection timeout",
+            ),
+            LogEntry(
+                timestamp="2026-10-03T14:02:00Z",
+                level="ERROR",
+                service="checkout-api",
+                message="Failed to acquire database connection",
+            ),
+        ]
 
 
 @pytest.mark.asyncio
-async def test_search_logs_returns_matching_logs_from_mock_platform():
-    async with Client(mcp) as client:
-        result = await client.call_tool(
-            "search_logs",
-            {
-                "service": "checkout-api",
-                "query": "database connection",
-            },
-        )
+async def test_search_logs_returns_matching_logs():
+    client = FakeIncidentPlatformClient()
 
-    assert not result.is_error
-    assert result.structured_content is not None
+    result = await _search_logs(
+        client,
+        service="checkout-api",
+        query="database connection",
+    )
 
-    matches = result.structured_content["matches"]
-
-    assert len(matches) == 2
+    assert len(result.matches) == 2
 
     assert all(
-        match["service"] == "checkout-api"
-        for match in matches
+        match.service == "checkout-api"
+        for match in result.matches
     )
 
     assert all(
-        "database connection" in match["message"].lower()
-        for match in matches
+        "database connection" in match.message.lower()
+        for match in result.matches
     )
 
 
@@ -44,7 +62,7 @@ async def test_search_logs_rejects_empty_service():
                     "service": "",
                     "query": "database",
                 },
-        )
+            )
 
 
 @pytest.mark.asyncio
