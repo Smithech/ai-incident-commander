@@ -16,7 +16,10 @@ from app.models import (
     InvestigationEventModel,
     InvestigationModel,
 )
+from app.repositories.incident import IncidentRepository
+from app.repositories.investigation import InvestigationRepository
 from app.services.hypothesis_generation import HypothesisGenerationInput
+from app.services.investigation import InvestigationService
 from app.services.llm import LLMClient
 
 
@@ -41,6 +44,14 @@ class FakeLLMClient:
         )
 
 
+class FailingLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        raise RuntimeError("LLM failure")
+
+    
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database():
     yield
@@ -181,3 +192,83 @@ async def test_get_unknown_investigation_returns_404():
         )
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_investigation_failure_persists_failed_state_without_result():
+    incident_payload = {
+        "title": "Checkout latency increased",
+        "description": "Checkout API latency increased significantly",
+        "service": "checkout-api",
+        "severity": "critical",
+    }
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        incident_response = await client.post(
+            "/incidents",
+            json=incident_payload,
+        )
+
+    assert incident_response.status_code == 201
+
+    incident_id = UUID(
+        incident_response.json()["id"]
+    )
+
+    async with SessionFactory() as session:
+        service = InvestigationService(
+            repository=InvestigationRepository(session),
+        )
+
+        investigation = await service.create_investigation(
+            incident_id=incident_id,
+        )
+
+        await session.commit()
+
+        investigation_id = investigation.id
+
+    async with SessionFactory() as session:
+        service = InvestigationService(
+            repository=InvestigationRepository(session),
+        )
+
+        with pytest.raises(RuntimeError, match="LLM failure"):
+            await service.run_investigation(
+                investigation_id,
+                incident_repository=IncidentRepository(session),
+                llm_client=FailingLLMClient(),
+            )
+
+    async with SessionFactory() as session:
+        repository = InvestigationRepository(session)
+
+        investigation = await repository.get(
+            investigation_id
+        )
+
+        events = (
+            await session.scalars(
+                select(InvestigationEventModel)
+                .where(
+                    InvestigationEventModel.investigation_id
+                    == investigation_id
+                )
+                .order_by(
+                    InvestigationEventModel.created_at
+                )
+            )
+        ).all()
+
+    assert investigation is not None
+    assert investigation.status.value == "failed"
+    assert investigation.result is None
+
+    assert [event.event_type for event in events] == [
+        "investigation.created",
+        "investigation.started",
+        "investigation.failed",
+    ]
