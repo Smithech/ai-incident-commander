@@ -1,0 +1,1 @@
+CREATE DATABASE incident_commander_test;
