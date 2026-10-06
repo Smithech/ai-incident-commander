@@ -5,7 +5,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
-from app.db import SessionFactory, init_db
+from app.db import SessionFactory
 from app.main import app
 from app.models import (
     IncidentModel,
@@ -16,7 +16,6 @@ from app.models import (
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database():
-    await init_db()
     yield
 
     async with SessionFactory() as session:

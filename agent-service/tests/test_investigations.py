@@ -5,7 +5,7 @@ from sqlalchemy import delete, select
 from uuid import UUID
 
 from app.api.investigations import get_llm_client
-from app.db import SessionFactory, init_db
+from app.db import SessionFactory
 from app.domain.hypothesis import (
     HypothesisCandidate,
     HypothesisGenerationResult,
@@ -43,8 +43,6 @@ class FakeLLMClient:
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database():
-    await init_db()
-
     yield
 
     async with SessionFactory() as session:
