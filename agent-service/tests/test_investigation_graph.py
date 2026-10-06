@@ -156,6 +156,20 @@ async def test_investigation_graph_generates_hypotheses() -> None:
     )
 
 
+@pytest.mark.asyncio
+async def test_investigation_graph_completes_without_hypotheses_when_evidence_is_insufficient():
+    state = build_state()
+
+    graph = build_investigation_graph(
+        llm_client=EmptyLLMClient(),
+    )
+
+    result = await graph.ainvoke(state)
+
+    assert result["evidence"]
+    assert result["hypotheses"] == []
+
+
 def test_should_end_when_evidence_is_empty():
     state = {
         "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
