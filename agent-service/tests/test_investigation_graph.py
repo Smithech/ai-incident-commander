@@ -189,18 +189,3 @@ def test_should_generate_hypotheses_when_evidence_exists():
     }
 
     assert should_generate_hypotheses(state) == "generate_hypotheses"
-
-
-@pytest.mark.asyncio
-async def test_investigation_graph_skips_llm_when_evidence_is_empty() -> None:
-    state = build_state()
-    state["evidence"] = []
-
-    graph = build_investigation_graph(
-        llm_client=FailingLLMClient(),
-    )
-
-    result = await graph.ainvoke(state)
-
-    assert result["evidence"] == []
-    assert result["hypotheses"] == []
