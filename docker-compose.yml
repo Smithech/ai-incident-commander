@@ -17,6 +17,8 @@ services:
   mock-platform:
     build:
       context: ./mock-platform
+    environment:
+      MOCK_PLATFORM_SCENARIO: ${MOCK_PLATFORM_SCENARIO:-database_pool_exhaustion}
     ports:
       - "8001:8001"
       
