@@ -25,6 +25,13 @@ from app.scenarios.database_pool_exhaustion import (
     LOGS as SCENARIO_LOGS,
     METRICS as SCENARIO_METRICS,
 )
+from app.scenarios.payment_provider_degradation import (
+    COMMITS as PAYMENT_PROVIDER_COMMITS,
+    DEPLOYMENTS as PAYMENT_PROVIDER_DEPLOYMENTS,
+    HISTORICAL_INCIDENTS as PAYMENT_PROVIDER_HISTORICAL_INCIDENTS,
+    LOGS as PAYMENT_PROVIDER_LOGS,
+    METRICS as PAYMENT_PROVIDER_METRICS,
+)
 
 
 SCENARIO = os.getenv(
@@ -33,6 +40,13 @@ SCENARIO = os.getenv(
 )
 
 SCENARIOS = {
+    "bad_deployment": (
+        BAD_DEPLOYMENT_LOGS,
+        BAD_DEPLOYMENT_METRICS,
+        BAD_DEPLOYMENT_DEPLOYMENTS,
+        BAD_DEPLOYMENT_COMMITS,
+        BAD_DEPLOYMENT_HISTORICAL_INCIDENTS,
+    ),
     "database_pool_exhaustion": (
         SCENARIO_LOGS,
         SCENARIO_METRICS,
@@ -40,12 +54,12 @@ SCENARIOS = {
         SCENARIO_COMMITS,
         SCENARIO_HISTORICAL_INCIDENTS,
     ),
-    "bad_deployment": (
-        BAD_DEPLOYMENT_LOGS,
-        BAD_DEPLOYMENT_METRICS,
-        BAD_DEPLOYMENT_DEPLOYMENTS,
-        BAD_DEPLOYMENT_COMMITS,
-        BAD_DEPLOYMENT_HISTORICAL_INCIDENTS,
+    "payment_provider_degradation": (
+        PAYMENT_PROVIDER_LOGS,
+        PAYMENT_PROVIDER_METRICS,
+        PAYMENT_PROVIDER_DEPLOYMENTS,
+        PAYMENT_PROVIDER_COMMITS,
+        PAYMENT_PROVIDER_HISTORICAL_INCIDENTS,
     ),
 }
 
