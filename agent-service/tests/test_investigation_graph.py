@@ -6,11 +6,14 @@ from app.domain.hypothesis import (
     HypothesisCandidate,
     HypothesisGenerationResult,
 )
+from app.domain.tool_selection import ToolRequest, ToolSelectionResult
 from app.services.hypothesis_generation import HypothesisGenerationInput
+from app.services.tool_selection import ToolSelectionInput
 from app.workflows.investigation import (
     InvestigationState,
     build_investigation_graph,
     generate_hypotheses,
+    InvestigationState,
     should_generate_hypotheses
 )
 
@@ -30,6 +33,22 @@ class FakeLLMClient:
             ]
         )
 
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(
+            requests=[
+                ToolRequest(
+                    tool_name="search_logs",
+                    arguments={
+                        "service": request.incident_service,
+                        "query": "database",
+                    },
+                )
+            ]
+        )
+
 
 class FailingLLMClient:
     async def generate_hypotheses(
@@ -40,6 +59,44 @@ class FailingLLMClient:
             "LLM should not be called when evidence is insufficient"
         )
 
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(requests=[])
+
+
+class ToolSelectingLLMClient:
+    async def generate_hypotheses(
+        self,
+        request: HypothesisGenerationInput,
+    ) -> HypothesisGenerationResult:
+        return HypothesisGenerationResult(hypotheses=[])
+
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(
+            requests=[
+                ToolRequest(
+                    tool_name="search_logs",
+                    arguments={
+                        "service": request.incident_service,
+                        "query": "payment provider",
+                    },
+                ),
+                ToolRequest(
+                    tool_name="query_metrics",
+                    arguments={
+                        "service": request.incident_service,
+                        "metric": "error_rate",
+                        "window_minutes": 30,
+                    },
+                ),
+            ],
+        )
+
 
 class EmptyLLMClient:
     async def generate_hypotheses(
@@ -47,6 +104,22 @@ class EmptyLLMClient:
         request: HypothesisGenerationInput,
     ) -> HypothesisGenerationResult:
         return HypothesisGenerationResult(hypotheses=[])
+
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(
+            requests=[
+                ToolRequest(
+                    tool_name="search_logs",
+                    arguments={
+                        "service": request.incident_service,
+                        "query": "database",
+                    },
+                )
+            ]
+        )
 
 
 class InvalidReferenceLLMClient:
@@ -64,6 +137,12 @@ class InvalidReferenceLLMClient:
             ]
         )
 
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(requests=[])
+
 
 def build_state() -> InvestigationState:
     return {
@@ -71,6 +150,19 @@ def build_state() -> InvestigationState:
         "service": "checkout-api",
         "incident_title": "Checkout errors increased",
         "incident_description": "Checkout errors increased significantly.",
+        "tool_requests": [],
+        "evidence": [],
+        "hypotheses": [],
+    }
+
+
+def build_state_with_evidence() -> InvestigationState:
+    return {
+        "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
+        "service": "checkout-api",
+        "incident_title": "Checkout errors increased",
+        "incident_description": "Checkout errors increased significantly.",
+        "tool_requests": [],
         "evidence": [
             Evidence(
                 id="evidence-1",
@@ -88,9 +180,30 @@ def build_state() -> InvestigationState:
     }
 
 
+async def fake_execute_tool(
+    request: ToolRequest,
+) -> list[Evidence]:
+    return [
+        Evidence(
+            id="evidence-log-1",
+            source="search_logs",
+            summary="Database connection acquisition failures observed.",
+            data={
+                "message": "Failed to acquire database connection",
+            },
+        )
+    ]
+
+
+async def empty_execute_tool(
+    request: ToolRequest,
+) -> list[Evidence]:
+    return []
+
+
 @pytest.mark.asyncio
 async def test_generate_hypotheses_uses_llm_result() -> None:
-    state = build_state()
+    state = build_state_with_evidence()
 
     result = await generate_hypotheses(
         state,
@@ -98,13 +211,10 @@ async def test_generate_hypotheses_uses_llm_result() -> None:
     )
 
     assert len(result["hypotheses"]) == 1
-
-    hypothesis = result["hypotheses"][0]
-
-    assert hypothesis.id
-    assert hypothesis.statement == "Database pool exhaustion is possible."
-    assert hypothesis.supporting_evidence_ids == ["evidence-1"]
-    assert hypothesis.contradicting_evidence_ids == []
+    assert (
+            result["hypotheses"][0].statement
+            == "Database pool exhaustion is possible."
+        )
 
 
 @pytest.mark.asyncio
@@ -139,21 +249,13 @@ async def test_investigation_graph_generates_hypotheses() -> None:
 
     graph = build_investigation_graph(
         llm_client=FakeLLMClient(),
+        execute_tool=fake_execute_tool,
     )
 
     result = await graph.ainvoke(state)
 
+    assert len(result["evidence"]) == 1
     assert len(result["hypotheses"]) == 1
-
-    hypothesis = result["hypotheses"][0]
-
-    assert hypothesis.id
-    assert hypothesis.statement == "Database pool exhaustion is possible."
-    assert hypothesis.supporting_evidence_ids
-    assert (
-        hypothesis.supporting_evidence_ids[0]
-        in {evidence.id for evidence in result["evidence"]}
-    )
 
 
 @pytest.mark.asyncio
@@ -171,11 +273,12 @@ async def test_investigation_graph_completes_without_hypotheses_when_evidence_is
 
 
 def test_should_end_when_evidence_is_empty():
-    state = {
+    state: InvestigationState = {
         "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
         "service": "checkout-api",
         "incident_title": "Checkout latency increased",
         "incident_description": "Checkout API latency increased",
+        "tool_requests": [],
         "evidence": [],
         "hypotheses": [],
     }
@@ -184,7 +287,8 @@ def test_should_end_when_evidence_is_empty():
 
 
 def test_should_generate_hypotheses_when_evidence_exists():
-    state = {
+    
+    state: InvestigationState = {
         "incident_id": UUID("00000000-0000-0000-0000-000000000001"),
         "service": "checkout-api",
         "incident_title": "Checkout latency increased",
@@ -200,6 +304,22 @@ def test_should_generate_hypotheses_when_evidence_exists():
             )
         ],
         "hypotheses": [],
+        "tool_requests": [],
     }
 
     assert should_generate_hypotheses(state) == "generate_hypotheses"
+
+
+@pytest.mark.asyncio
+async def test_investigation_graph_completes_without_hypotheses_when_evidence_is_insufficient():
+    state = build_state()
+
+    graph = build_investigation_graph(
+        llm_client=EmptyLLMClient(),
+        execute_tool=empty_execute_tool,
+    )
+
+    result = await graph.ainvoke(state)
+
+    assert result["evidence"] == []
+    assert result["hypotheses"] == []

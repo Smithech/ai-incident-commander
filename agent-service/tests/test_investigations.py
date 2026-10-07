@@ -1,15 +1,18 @@
+from uuid import UUID
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
-from uuid import UUID
 
 from app.api.investigations import get_llm_client
 from app.db import SessionFactory
+from app.domain.evidence import Evidence
 from app.domain.hypothesis import (
     HypothesisCandidate,
     HypothesisGenerationResult,
 )
+from app.domain.tool_selection import ToolRequest, ToolSelectionResult
 from app.main import app
 from app.models import (
     IncidentModel,
@@ -20,7 +23,7 @@ from app.repositories.incident import IncidentRepository
 from app.repositories.investigation import InvestigationRepository
 from app.services.hypothesis_generation import HypothesisGenerationInput
 from app.services.investigation import InvestigationService
-from app.services.llm import LLMClient
+from app.services.tool_selection import ToolSelectionInput
 
 
 class FakeLLMClient:
@@ -43,6 +46,22 @@ class FakeLLMClient:
             ]
         )
 
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(
+            requests=[
+                ToolRequest(
+                    tool_name="search_logs",
+                    arguments={
+                        "service": request.incident_service,
+                        "query": "database",
+                    },
+                )
+            ]
+        )
+
 
 class FailingLLMClient:
     async def generate_hypotheses(
@@ -51,7 +70,38 @@ class FailingLLMClient:
     ) -> HypothesisGenerationResult:
         raise RuntimeError("LLM failure")
 
-    
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        return ToolSelectionResult(
+            requests=[
+                ToolRequest(
+                    tool_name="search_logs",
+                    arguments={
+                        "service": request.incident_service,
+                        "query": "database",
+                    },
+                )
+            ]
+        )
+
+
+async def fake_execute_tool(
+    request: ToolRequest,
+) -> list[Evidence]:
+    return [
+        Evidence(
+            id="evidence-test-1",
+            source="search_logs",
+            summary="Database connection acquisition failures observed.",
+            data={
+                "message": "Failed to acquire database connection",
+            },
+        )
+    ]
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database():
     yield
@@ -241,6 +291,7 @@ async def test_investigation_failure_persists_failed_state_without_result():
                 investigation_id,
                 incident_repository=IncidentRepository(session),
                 llm_client=FailingLLMClient(),
+                execute_tool=fake_execute_tool,
             )
 
     async with SessionFactory() as session:

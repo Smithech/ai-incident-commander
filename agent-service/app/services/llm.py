@@ -4,7 +4,9 @@ from typing import Protocol
 from openai import AsyncOpenAI
 
 from app.domain.hypothesis import HypothesisGenerationResult
+from app.domain.tool_selection import ToolSelectionResult
 from app.services.hypothesis_generation import HypothesisGenerationInput
+from app.services.tool_selection import ToolSelectionInput
 
 
 class LLMClient(Protocol):
@@ -12,6 +14,12 @@ class LLMClient(Protocol):
         self,
         request: HypothesisGenerationInput,
     ) -> HypothesisGenerationResult:
+        ...
+
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
         ...
 
 
@@ -59,5 +67,41 @@ class NvidiaLLMClient:
 
         if parsed is None:
             raise ValueError("LLM returned no structured result")
+
+        return parsed
+
+    async def select_tools(
+        self,
+        request: ToolSelectionInput,
+    ) -> ToolSelectionResult:
+        response = await self.client.chat.completions.parse(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an incident investigation assistant. "
+                        "Select the tools that are useful to investigate "
+                        "the provided incident. "
+                        "Return only tools that are available in the "
+                        "provided tool set. "
+                        "Use the incident service when a tool requires "
+                        "a service. "
+                        "Do not invent tool names. "
+                        "Do not execute tools."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": request.model_dump_json(),
+                },
+            ],
+            response_format=ToolSelectionResult,
+        )
+
+        parsed = response.choices[0].message.parsed
+
+        if parsed is None:
+            raise ValueError("LLM returned no structured tool selection")
 
         return parsed
