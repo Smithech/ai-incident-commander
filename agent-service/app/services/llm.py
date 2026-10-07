@@ -203,8 +203,9 @@ Investigation heuristics:
 - For incidents involving errors, failures, exceptions, or timeouts,
   search_logs is usually useful because logs can reveal the concrete
   failure mechanism and external dependency errors.
-- For incidents involving elevated or abnormal behavior, query_metrics
-  is useful to quantify the deviation from baseline.
+- For incidents involving elevated or abnormal behavior, use query_metrics
+  to quantify the abnormal behavior and, when relevant, its impact on
+  service health.
 - For incidents that may be related to a recent change, get_recent_deployments
   is useful.
 - Use get_commit when a specific commit SHA is already available.
@@ -212,4 +213,27 @@ Investigation heuristics:
   search_historical_incidents can provide useful comparison evidence.
 - Prefer multiple complementary sources when the incident description
   indicates that they may reveal different aspects of the failure.
+- When an incident involves abnormal traffic, load, latency, errors,
+  saturation, or capacity, consider complementary evidence:
+  - a metric measuring the abnormal behavior,
+  - a metric measuring service impact such as error rate or latency,
+  - and logs that may reveal the mechanism or symptom.
+- When multiple metrics can describe different aspects of the same
+  incident, prefer complementary metrics rather than relying on a
+  single metric.
+- For traffic or load-related incidents, search_logs can help determine
+  whether the increased load is associated with timeouts, queueing,
+  worker exhaustion, or other service symptoms.
+- When an incident involves abnormal traffic or load and the service
+  shows elevated error rates, consider search_logs to identify the
+  operational mechanism behind the impact, such as timeouts, queueing,
+  worker exhaustion, or resource saturation.
+- Prefer evidence that explains not only that a metric is abnormal,
+  but also how the abnormal condition may be affecting the service.
+- When an incident involves abnormal traffic or load and the service
+  shows elevated error rates, consider search_logs to identify the
+  operational mechanism behind the impact, such as timeouts, queueing,
+  worker exhaustion, or resource saturation.
+- Prefer evidence that explains not only that a metric is abnormal,
+  but also how the abnormal condition may be affecting the service.
 """
