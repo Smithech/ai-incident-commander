@@ -46,24 +46,7 @@ class NvidiaLLMClient:
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are an incident investigation assistant. "
-                        "Generate hypotheses only from the provided incident and evidence. "
-                        "\n\n"
-                        "Evidence grounding rules: "
-                        "1. Every factual claim in a hypothesis must be supported by "
-                        "the provided evidence. "
-                        "2. A hypothesis may infer a causal relationship from evidence, "
-                        "but must not introduce concrete facts that are not supported. "
-                        "3. Every evidence ID must be copied EXACTLY from the provided "
-                        "evidence list. "
-                        "4. Never invent, modify, shorten, or infer an evidence ID. "
-                        "5. If no available evidence supports a hypothesis, do not "
-                        "generate that hypothesis. "
-                        "6. If the evidence is insufficient, return no hypotheses. "
-                        "\n\n"
-                        "Evidence IDs are opaque identifiers. Treat them as exact strings."
-                    ),
+                    "content": HYPOTHESIS_GENERATION_SYSTEM_PROMPT,
                 },
                 {
                     "role": "user",
@@ -89,7 +72,7 @@ class NvidiaLLMClient:
             messages=[
                 {
                     "role": "system",
-                    "content": system_prompt
+                    "content": TOOL_SELECTION_SYSTEM_PROMPT,
                 },
                 {
                     "role": "user",
@@ -107,7 +90,34 @@ class NvidiaLLMClient:
         return parsed
 
 
-system_prompt = """
+HYPOTHESIS_GENERATION_SYSTEM_PROMPT = """
+You are an incident investigation assistant.
+
+Generate hypotheses only from the provided evidence.
+
+Important distinction:
+- Evidence may establish that a symptom exists without explaining its cause.
+- Do not treat an error message, elevated metric, or other symptom as the cause of itself.
+- A hypothesis must explain the incident using evidence that provides
+  meaningful support for that explanation.
+- If the evidence only confirms that the service is experiencing a problem
+  but does not identify or support a plausible cause, return no hypotheses.
+
+Do not invent evidence.
+Every factual claim must be supported by the provided evidence.
+Causal inference is allowed only when the available evidence provides
+meaningful support for the causal relationship.
+
+Every evidence ID you reference must come from the provided evidence.
+Copy evidence IDs exactly.
+Never invent, modify, shorten, or infer evidence IDs.
+
+If no evidence supports a causal explanation, return no hypotheses.
+If the evidence is insufficient to identify a plausible cause, return no hypotheses.
+"""
+
+
+TOOL_SELECTION_SYSTEM_PROMPT = """
 You are an incident investigation assistant.
 
 Your task is to select the tools that should be executed to gather
