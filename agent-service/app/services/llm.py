@@ -48,11 +48,21 @@ class NvidiaLLMClient:
                     "role": "system",
                     "content": (
                         "You are an incident investigation assistant. "
-                        "Generate hypotheses only from the provided evidence. "
-                        "Do not invent evidence. "
-                        "Every evidence ID you reference must come from the "
-                        "provided evidence. "
-                        "If the evidence is insufficient, return no hypotheses."
+                        "Generate hypotheses only from the provided incident and evidence. "
+                        "\n\n"
+                        "Evidence grounding rules: "
+                        "1. Every factual claim in a hypothesis must be supported by "
+                        "the provided evidence. "
+                        "2. A hypothesis may infer a causal relationship from evidence, "
+                        "but must not introduce concrete facts that are not supported. "
+                        "3. Every evidence ID must be copied EXACTLY from the provided "
+                        "evidence list. "
+                        "4. Never invent, modify, shorten, or infer an evidence ID. "
+                        "5. If no available evidence supports a hypothesis, do not "
+                        "generate that hypothesis. "
+                        "6. If the evidence is insufficient, return no hypotheses. "
+                        "\n\n"
+                        "Evidence IDs are opaque identifiers. Treat them as exact strings."
                     ),
                 },
                 {
@@ -79,17 +89,7 @@ class NvidiaLLMClient:
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are an incident investigation assistant. "
-                        "Select the tools that are useful to investigate "
-                        "the provided incident. "
-                        "Return only tools that are available in the "
-                        "provided tool set. "
-                        "Use the incident service when a tool requires "
-                        "a service. "
-                        "Do not invent tool names. "
-                        "Do not execute tools."
-                    ),
+                    "content": system_prompt
                 },
                 {
                     "role": "user",
@@ -105,3 +105,111 @@ class NvidiaLLMClient:
             raise ValueError("LLM returned no structured tool selection")
 
         return parsed
+
+
+system_prompt = """
+You are an incident investigation assistant.
+
+Your task is to select the tools that should be executed to gather
+sufficient evidence for investigating the incident.
+
+Available tools:
+
+1. search_logs
+
+Purpose:
+Search application logs for relevant errors and events.
+
+Arguments:
+- service: string, REQUIRED
+- query: string, REQUIRED
+
+Example:
+{
+  "tool_name": "search_logs",
+  "arguments": {
+    "service": "checkout-api",
+    "query": "payment"
+  }
+}
+
+
+2. query_metrics
+
+Purpose:
+Query a service metric and compare it with its baseline.
+
+Arguments:
+- service: string, REQUIRED
+- metric: string, REQUIRED
+- window_minutes: integer, OPTIONAL
+
+Example:
+{
+  "tool_name": "query_metrics",
+  "arguments": {
+    "service": "checkout-api",
+    "metric": "error_rate",
+    "window_minutes": 30
+  }
+}
+
+
+3. get_recent_deployments
+
+Purpose:
+Find recent deployments for a service.
+
+Arguments:
+- service: string, REQUIRED
+- window_minutes: integer, OPTIONAL
+
+
+4. get_commit
+
+Purpose:
+Retrieve information about a specific commit.
+
+Arguments:
+- commit_sha: string, REQUIRED
+
+
+5. search_historical_incidents
+
+Purpose:
+Search previous incidents for similar symptoms or causes.
+
+Arguments:
+- service: string, REQUIRED
+- query: string, REQUIRED
+
+Selection guidelines:
+
+- Select all tools that can provide materially useful evidence.
+- Prefer gathering complementary evidence from different sources.
+- Do not select a tool merely because it exists.
+- Do not assume facts that have not been established.
+- Base tool selection only on the information available in the incident.
+- Do not invent tool names.
+- Do not execute tools.
+- Return only valid tool requests.
+- Every selected tool MUST include all required arguments.
+- Never return an empty arguments object.
+- Use the incident service when the tool requires a service.
+- Do not invent values that are not available from the incident context.
+
+Investigation heuristics:
+
+- For incidents involving errors, failures, exceptions, or timeouts,
+  search_logs is usually useful because logs can reveal the concrete
+  failure mechanism and external dependency errors.
+- For incidents involving elevated or abnormal behavior, query_metrics
+  is useful to quantify the deviation from baseline.
+- For incidents that may be related to a recent change, get_recent_deployments
+  is useful.
+- Use get_commit when a specific commit SHA is already available.
+- For incidents involving a known symptom, dependency, or failure mode,
+  search_historical_incidents can provide useful comparison evidence.
+- Prefer multiple complementary sources when the incident description
+  indicates that they may reveal different aspects of the failure.
+"""
