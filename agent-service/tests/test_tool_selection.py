@@ -4,7 +4,7 @@ from app.domain.tool_selection import (
     ToolRequest,
     ToolSelectionResult,
 )
-from app.services.tool_selection import ToolSelectionInput, validate_tool_selection
+from app.services.tool_selection import ToolSelectionInput, validate_tool_request, validate_tool_selection
 
 
 def test_tool_selection_result_contains_requested_tools():
@@ -107,3 +107,62 @@ def test_validate_tool_selection_rejects_unknown_tool():
 
     with pytest.raises(ValueError, match="Unsupported tool"):
         validate_tool_selection(result)
+
+
+def test_search_logs_requires_query():
+    request = ToolRequest(
+        tool_name="search_logs",
+        arguments={
+            "service": "checkout-api",
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="query must be a non-empty string",
+    ):
+        validate_tool_request(request)
+
+
+def test_query_metrics_requires_metric():
+    request = ToolRequest(
+        tool_name="query_metrics",
+        arguments={
+            "service": "checkout-api",
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="metric must be a non-empty string",
+    ):
+        validate_tool_request(request)
+
+
+def test_tool_request_rejects_unknown_arguments():
+    request = ToolRequest(
+        tool_name="search_logs",
+        arguments={
+            "service": "checkout-api",
+            "query": "database",
+            "limit": 100,
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Unknown arguments",
+    ):
+        validate_tool_request(request)
+
+
+def test_valid_search_logs_request_is_accepted():
+    request = ToolRequest(
+        tool_name="search_logs",
+        arguments={
+            "service": "checkout-api",
+            "query": "database",
+        },
+    )
+
+    validate_tool_request(request)
