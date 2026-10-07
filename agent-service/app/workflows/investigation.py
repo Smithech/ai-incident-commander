@@ -19,26 +19,7 @@ from app.services.tool_selection import (
     ToolSelectionInput,
     validate_tool_selection,
 )
-from app.tools.get_commit import (
-    CommitResult,
-    commit_result_to_evidence,
-)
-from app.tools.get_recent_deployments import (
-    RecentDeploymentsResult,
-    deployment_result_to_evidence,
-)
-from app.tools.query_metrics import (
-    MetricResult,
-    metric_result_to_evidence,
-)
-from app.tools.search_historical_incidents import (
-    HistoricalIncidentsResult,
-    historical_incidents_to_evidence,
-)
-from app.tools.search_logs import (
-    SearchLogsResult,
-    search_logs_result_to_evidence,
-)
+
 
 ToolExecutor = Callable[
     [ToolRequest],
