@@ -1,4 +1,13 @@
 services:
+  migration:
+    build:
+      context: ./agent-service
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["uv", "run", "alembic", "upgrade", "head"]
   agent-service:
     build:
       context: ./agent-service
@@ -11,8 +20,10 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migration:
+          condition: service_completed_successfully
+      mock-platform:
+        condition: service_started
 
   mock-platform:
     build:
