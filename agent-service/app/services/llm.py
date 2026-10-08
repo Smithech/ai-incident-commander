@@ -210,6 +210,12 @@ Arguments:
 - metric: string, REQUIRED
 - window_minutes: integer, OPTIONAL
 
+Supported metrics:
+- error_rate
+- request_rate
+
+Do not invent metric names.
+
 Example:
 {
   "tool_name": "query_metrics",

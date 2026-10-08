@@ -104,7 +104,14 @@ def _validate_query_metrics(
     arguments: dict[str, Any],
 ) -> None:
     _require_string(arguments, "service")
-    _require_string(arguments, "metric")
+
+    metric = _require_string(arguments, "metric")
+
+    if metric not in {"error_rate", "request_rate"}:
+        raise ValueError(
+            f"Unsupported metric: {metric}"
+        )
+
     _require_optional_int(arguments, "window_minutes")
 
     _reject_unknown_arguments(
