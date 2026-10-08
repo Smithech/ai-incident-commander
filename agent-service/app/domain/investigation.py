@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from app.domain.evidence import Evidence
-from app.domain.hypothesis import Hypothesis
+from app.domain.hypothesis import Hypothesis, HypothesisEvaluation
 
 
 class InvestigationStatus(StrEnum):
@@ -19,6 +19,7 @@ class InvestigationStatus(StrEnum):
 class InvestigationResult(BaseModel):
     evidence: list[Evidence]
     hypotheses: list[Hypothesis]
+    evaluations: list[HypothesisEvaluation]
 
  
 @dataclass

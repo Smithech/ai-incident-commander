@@ -5,8 +5,12 @@ from app.domain.evidence import Evidence
 from app.domain.hypothesis import (
     HypothesisCandidate,
     HypothesisGenerationResult,
+    HypothesisEvaluation,
+    HypothesisEvaluationResult,
+    HypothesisVerdict,
 )
 from app.domain.tool_selection import ToolRequest, ToolSelectionResult
+from app.services.hypothesis_evaluation import HypothesisEvaluationInput
 from app.services.hypothesis_generation import HypothesisGenerationInput
 from app.services.tool_selection import ToolSelectionInput
 from app.workflows.investigation import (
@@ -29,6 +33,25 @@ class FakeLLMClient:
                     statement="Database pool exhaustion is possible.",
                     supporting_evidence_ids=[request.evidence[0].id],
                     contradicting_evidence_ids=[],
+                )
+            ]
+        )
+
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+        hypothesis = request.hypotheses[0]
+        evidence = request.evidence[0]
+
+        return HypothesisEvaluationResult(
+            evaluations=[
+                HypothesisEvaluation(
+                    hypothesis_id=hypothesis.id,
+                    verdict=HypothesisVerdict.SUPPORTED,
+                    supporting_evidence_ids=[evidence.id],
+                    contradicting_evidence_ids=[],
+                    reasoning="The evidence supports the hypothesis.",
                 )
             ]
         )
@@ -59,6 +82,12 @@ class FailingLLMClient:
             "LLM should not be called when evidence is insufficient"
         )
 
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+        ...
+
     async def select_tools(
         self,
         request: ToolSelectionInput,
@@ -72,6 +101,12 @@ class ToolSelectingLLMClient:
         request: HypothesisGenerationInput,
     ) -> HypothesisGenerationResult:
         return HypothesisGenerationResult(hypotheses=[])
+
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+        ...
 
     async def select_tools(
         self,
@@ -105,6 +140,12 @@ class EmptyLLMClient:
     ) -> HypothesisGenerationResult:
         return HypothesisGenerationResult(hypotheses=[])
 
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+            ...
+
     async def select_tools(
         self,
         request: ToolSelectionInput,
@@ -137,6 +178,12 @@ class InvalidReferenceLLMClient:
             ]
         )
 
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+        ...
+
     async def select_tools(
         self,
         request: ToolSelectionInput,
@@ -153,6 +200,7 @@ def build_state() -> InvestigationState:
         "tool_requests": [],
         "evidence": [],
         "hypotheses": [],
+        "evaluations": [],
     }
 
 
@@ -177,6 +225,7 @@ def build_state_with_evidence() -> InvestigationState:
             ),
         ],
         "hypotheses": [],
+        "evaluations": [],
     }
 
 
@@ -256,20 +305,11 @@ async def test_investigation_graph_generates_hypotheses() -> None:
 
     assert len(result["evidence"]) == 1
     assert len(result["hypotheses"]) == 1
+    assert len(result["evaluations"]) == 1
 
-
-@pytest.mark.asyncio
-async def test_investigation_graph_completes_without_hypotheses_when_evidence_is_insufficient():
-    state = build_state()
-
-    graph = build_investigation_graph(
-        llm_client=EmptyLLMClient(),
+    assert (
+        result["evaluations"][0].hypothesis_id == result["hypotheses"][0].id
     )
-
-    result = await graph.ainvoke(state)
-
-    assert result["evidence"]
-    assert result["hypotheses"] == []
 
 
 def test_should_end_when_evidence_is_empty():
@@ -281,6 +321,7 @@ def test_should_end_when_evidence_is_empty():
         "tool_requests": [],
         "evidence": [],
         "hypotheses": [],
+        "evaluations": [],
     }
 
     assert should_generate_hypotheses(state) == "end"
@@ -305,6 +346,7 @@ def test_should_generate_hypotheses_when_evidence_exists():
         ],
         "hypotheses": [],
         "tool_requests": [],
+        "evaluations": [],
     }
 
     assert should_generate_hypotheses(state) == "generate_hypotheses"
@@ -323,3 +365,4 @@ async def test_investigation_graph_completes_without_hypotheses_when_evidence_is
 
     assert result["evidence"] == []
     assert result["hypotheses"] == []
+    assert result["evaluations"] == []

@@ -6,9 +6,10 @@ from fastmcp import Client
 from langgraph.graph import END, START, StateGraph
 
 from app.domain.evidence import Evidence
-from app.domain.hypothesis import Hypothesis
+from app.domain.hypothesis import Hypothesis, HypothesisEvaluation
 from app.domain.tool_selection import ToolRequest
 from app.mcp_server import mcp
+from app.services.hypothesis_evaluation import evaluate_hypotheses
 from app.services.hypothesis_generation import (
     HypothesisGenerationInput,
     validate_evidence_references,
@@ -35,6 +36,7 @@ class InvestigationState(TypedDict):
     tool_requests: list[ToolRequest]
     evidence: list[Evidence]
     hypotheses: list[Hypothesis]
+    evaluations: list[HypothesisEvaluation]
 
 
 async def select_tools(
@@ -133,10 +135,19 @@ def build_investigation_graph(
             state,
             llm_client,
         )
+
+    async def evaluate_hypotheses_node(
+        state: InvestigationState,
+    ) -> dict:
+        return await evaluate_hypotheses(
+            state,
+            llm_client=llm_client,
+        )
     
     builder.add_node("select_tools", select_tools_node)
     builder.add_node("collect_evidence", collect_evidence_node)
     builder.add_node("generate_hypotheses", generate_hypotheses_node)
+    builder.add_node("evaluate_hypotheses", evaluate_hypotheses_node)
 
     builder.add_edge(START, "select_tools")
     builder.add_edge("select_tools", "collect_evidence")
@@ -150,7 +161,8 @@ def build_investigation_graph(
         },
     )
 
-    builder.add_edge("generate_hypotheses", END)
+    builder.add_edge("generate_hypotheses", "evaluate_hypotheses")
+    builder.add_edge("evaluate_hypotheses", END)
 
     return builder.compile()
 

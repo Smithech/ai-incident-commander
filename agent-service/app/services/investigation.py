@@ -104,6 +104,7 @@ class InvestigationService:
                 "evidence": [],
                 "hypotheses": [],
                 "tool_requests": [],
+                "evaluations": [],
             }
 
             final_state = await graph.ainvoke(initial_state)
@@ -111,6 +112,7 @@ class InvestigationService:
             result = InvestigationResult(
                 evidence=final_state["evidence"],
                 hypotheses=final_state["hypotheses"],
+                evaluations=final_state["evaluations"],
             )
 
             await self.repository.update_result(

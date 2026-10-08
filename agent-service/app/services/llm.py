@@ -3,8 +3,9 @@ from typing import Protocol
 
 from openai import AsyncOpenAI
 
-from app.domain.hypothesis import HypothesisGenerationResult
+from app.domain.hypothesis import HypothesisEvaluationResult, HypothesisGenerationResult
 from app.domain.tool_selection import ToolSelectionResult
+from app.services.hypothesis_evaluation import HypothesisEvaluationInput
 from app.services.hypothesis_generation import HypothesisGenerationInput
 from app.services.tool_selection import ToolSelectionInput
 
@@ -14,6 +15,12 @@ class LLMClient(Protocol):
         self,
         request: HypothesisGenerationInput,
     ) -> HypothesisGenerationResult:
+        ...
+
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
         ...
 
     async def select_tools(
@@ -60,6 +67,34 @@ class NvidiaLLMClient:
 
         if parsed is None:
             raise ValueError("LLM returned no structured result")
+
+        return parsed
+
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+        response = await self.client.chat.completions.parse(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": HYPOTHESIS_EVALUATION_SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": request.model_dump_json(),
+                },
+            ],
+            response_format=HypothesisEvaluationResult,
+        )
+
+        parsed = response.choices[0].message.parsed
+
+        if parsed is None:
+            raise ValueError(
+                "LLM returned no hypothesis evaluation result"
+            )
 
         return parsed
 
@@ -114,6 +149,27 @@ Never invent, modify, shorten, or infer evidence IDs.
 
 If no evidence supports a causal explanation, return no hypotheses.
 If the evidence is insufficient to identify a plausible cause, return no hypotheses.
+"""
+
+
+HYPOTHESIS_EVALUATION_SYSTEM_PROMPT = """
+You are an incident investigation assistant. Evaluate each hypothesis only against the provided evidence.
+
+Verdicts:
+- supported: the evidence provides meaningful support for the hypothesis.
+- contradicted: the evidence provides meaningful evidence against the hypothesis.
+- inconclusive: the evidence is insufficient to support or contradict the hypothesis.
+
+Important rules:
+- Do not invent evidence or facts.
+- Do not treat a symptom as its own cause.
+- Causal relationships must be meaningfully supported by the provided evidence.
+- Every evidence ID must come exactly from the provided evidence.
+- Never invent, modify, shorten, or infer evidence IDs.
+- Every hypothesis ID must come exactly from the provided hypotheses.
+- Never invent or modify hypothesis IDs.
+- If the evidence is insufficient to determine whether a hypothesis is supported or contradicted, use 'inconclusive'.
+- If there are no hypotheses, return an empty evaluations list.
 """
 
 
