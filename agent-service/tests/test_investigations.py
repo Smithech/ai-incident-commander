@@ -10,7 +10,10 @@ from app.db import SessionFactory
 from app.domain.evidence import Evidence
 from app.domain.hypothesis import (
     HypothesisCandidate,
+    HypothesisEvaluation,
+    HypothesisEvaluationResult,
     HypothesisGenerationResult,
+    HypothesisVerdict,
 )
 from app.domain.tool_selection import ToolRequest, ToolSelectionResult
 from app.main import app
@@ -21,6 +24,7 @@ from app.models import (
 )
 from app.repositories.incident import IncidentRepository
 from app.repositories.investigation import InvestigationRepository
+from app.services.hypothesis_evaluation import HypothesisEvaluationInput
 from app.services.hypothesis_generation import HypothesisGenerationInput
 from app.services.investigation import InvestigationService
 from app.services.tool_selection import ToolSelectionInput
@@ -42,6 +46,31 @@ class FakeLLMClient:
                     ),
                     supporting_evidence_ids=[evidence_id],
                     contradicting_evidence_ids=[],
+                )
+            ]
+        )
+
+    async def evaluate_hypotheses(
+        self,
+        request: HypothesisEvaluationInput,
+    ) -> HypothesisEvaluationResult:
+        if not request.hypotheses:
+            return HypothesisEvaluationResult(
+                evaluations=[],
+            )
+
+        hypothesis = request.hypotheses[0]
+
+        return HypothesisEvaluationResult(
+            evaluations=[
+                HypothesisEvaluation(
+                    hypothesis_id=hypothesis.id,
+                    verdict=HypothesisVerdict.SUPPORTED,
+                    supporting_evidence_ids=(
+                        hypothesis.supporting_evidence_ids
+                    ),
+                    contradicting_evidence_ids=[],
+                    reasoning="The provided evidence supports the hypothesis.",
                 )
             ]
         )
