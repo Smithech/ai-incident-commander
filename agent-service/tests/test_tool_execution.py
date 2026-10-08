@@ -1,7 +1,57 @@
 import pytest
 
+from app.domain.evidence import Evidence
 from app.domain.tool_selection import ToolRequest
-from app.services.tool_execution import execute_tool_request
+from app.domain.tool_selection import ToolRequest
+from app.services.tool_execution import execute_tool_request, ToolDataUnavailableError
+from app.workflows.investigation import collect_evidence
+
+async def fake_execute_tool(request):
+    if request.tool_name == "query_metrics":
+        raise ToolDataUnavailableError(
+            "Metric not available: request_rate"
+        )
+
+    return [
+        Evidence(
+            id="evidence-1",
+            source="search_logs",
+            summary="Database connection timeout",
+            data={},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_collect_evidence_ignores_unavailable_tool_data():
+    state = {
+        "tool_requests": [
+            ToolRequest(
+                tool_name="query_metrics",
+                arguments={
+                    "service": "checkout-api",
+                    "metric": "request_rate",
+                },
+            ),
+            ToolRequest(
+                tool_name="search_logs",
+                arguments={
+                    "service": "checkout-api",
+                    "query": "database connection",
+                },
+            ),
+        ],
+        "evidence": [],
+    }
+
+    result = await collect_evidence(
+        state,
+        execute_tool=fake_execute_tool,
+    )
+
+    assert len(result["evidence"]) == 1
+    assert result["evidence"][0].id == "evidence-1"
+    assert result["evidence"][0].source == "search_logs"
 
 
 @pytest.mark.asyncio

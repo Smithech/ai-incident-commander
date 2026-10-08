@@ -15,7 +15,7 @@ from app.services.hypothesis_generation import (
     validate_evidence_references,
 )
 from app.services.llm import LLMClient
-from app.services.tool_execution import execute_tool_request
+from app.services.tool_execution import execute_tool_request, ToolDataUnavailableError
 from app.services.tool_selection import (
     ToolSelectionInput,
     validate_tool_selection,
@@ -65,7 +65,10 @@ async def collect_evidence(
     evidence: list[Evidence] = []
 
     for request in state["tool_requests"]:
-        tool_evidence = await execute_tool(request)
+        try:
+            tool_evidence = await execute_tool(request)
+        except ToolDataUnavailableError:
+            continue
         evidence.extend(tool_evidence)
 
     return {

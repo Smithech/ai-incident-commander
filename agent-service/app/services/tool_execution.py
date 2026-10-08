@@ -1,4 +1,5 @@
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
 from app.domain.evidence import Evidence
 from app.domain.tool_selection import ToolRequest
@@ -23,6 +24,10 @@ from app.tools.search_logs import (
     SearchLogsResult,
     search_logs_result_to_evidence,
 )
+
+
+class ToolDataUnavailableError(Exception):
+    """Raised when a tool has no data available for the request."""
 
 
 async def execute_tool_request(
@@ -120,15 +125,23 @@ async def _execute_query_metrics(
             "window_minutes"
         )
 
-    async with Client(mcp) as client:
-        result = await client.call_tool(
-            "query_metrics",
-            {
-                "service": service,
-                "metric": metric,
-                "window_minutes": window_minutes,
-            },
-        )
+    try:
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "query_metrics",
+                {
+                    "service": service,
+                    "metric": metric,
+                    "window_minutes": window_minutes,
+                },
+            )
+    except ToolError as exc:
+        if "404 Not Found" in str(exc):
+            raise ToolDataUnavailableError(
+                f"Metric not available: {metric}"
+            ) from exc
+
+        raise
 
     if result.is_error:
         raise RuntimeError(
