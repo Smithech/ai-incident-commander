@@ -20,7 +20,7 @@ The LLM does not execute tools directly. Instead, it proposes diagnostic actions
 
 The overall flow is:
 
-```text id="qz8x2e"
+```text
 LLM
  │
  │ proposes tool requests
@@ -88,7 +88,7 @@ Provides textual evidence about errors, warnings, timeouts, and other operationa
 
 #### Input
 
-```text id="8d6m7v"
+```text
 service
 query
 ```
@@ -269,7 +269,7 @@ Provides context about the code change associated with a deployment.
 
 #### Input
 
-```text id="4x6j5m"
+```text 
 commit_sha
 ```
 
